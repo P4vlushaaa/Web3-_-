@@ -39,7 +39,7 @@ func (s *BlockSubscriber) Start() {
 func (s *BlockSubscriber) pollOnce() error {
 	// Здесь логика: узнаём текущий блок, сверяемся с локальным бд,
 	// проходимся по новым блокам, анализируем транзакции/нотификации.
-	// Для упрощения покажем только "пример" — в реале будет много кода.
+
 
 	height, err := s.rpc.GetBlockCount()
 	if err != nil {
