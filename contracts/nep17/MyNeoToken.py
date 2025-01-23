@@ -6,15 +6,13 @@ from boa3.builtin.interop.runtime import calling_script_hash, check_witness, exe
 from boa3.builtin.interop.storage import get, put
 from boa3.builtin.type import UInt160
 
-# ------------------------------------------------------
-#  Конфигурация токена
-# ------------------------------------------------------
+
 TOKEN_SYMBOL = 'MYNEO'
 TOKEN_DECIMALS = 0
 
 TOTAL_SUPPLY_KEY = b'totalSupply'
 BALANCE_PREFIX = b'balance_'
-ADMIN_KEY       = b'admin'   # владелец смарт-контракта
+ADMIN_KEY       = b'admin'
 
 on_transfer = Nep17TransferEvent
 
@@ -57,18 +55,14 @@ def transfer(from_addr: UInt160, to_addr: UInt160, amount: int, data: Any) -> bo
         on_transfer(from_addr, to_addr, amount)
 
         if data is not None:
-            # Вызываем onNEP17Payment, если у целевого контракта есть такой метод
             call_contract(to_addr, 'onNEP17Payment', [from_addr, amount, data])
 
     return True
 
 @public
 def deploy(admin: UInt160):
-    """
-    При первом деплое: устанавливаем админа и минтим 100_000_000 токенов.
-    """
     if totalSupply() != 0:
-        return  # уже инициализировано
+        return
 
     put(ADMIN_KEY, admin)
     minted = 100_000_000
