@@ -16,7 +16,7 @@ const (
 	sellPrefix = "forSale_"
 )
 
-// MarketDeployData структура для _deploy (пример)
+// MarketDeployData структура для _deploy
 type MarketDeployData struct {
 	Admin interop.Hash160
 	Token interop.Hash160
