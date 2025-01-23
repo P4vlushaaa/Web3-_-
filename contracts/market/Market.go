@@ -20,6 +20,7 @@ type MarketDeployData struct {
 	Admin interop.Hash160
 	Token interop.Hash160
 	Nft   interop.Hash160
+	
 }
 
 func _deploy(data any, isUpdate bool) {
