@@ -1,5 +1,0 @@
-listenAddr: ":8081"
-logLevel: "info"
-frostfsEndpoint: "grpcs://localhost:8080"
-frostfsPrivKey: "0000000000000000000000000000000..."
-frostfsContainer: "containerID-here"
