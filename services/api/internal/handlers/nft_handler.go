@@ -1,95 +1,89 @@
 package handlers
 
 import (
-	"encoding/json"
-	"math/big"
-	"net/http"
-	"os"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "strconv"
 
-	"myproject/services/api/internal/neo"
-
-	"github.com/nspcc-dev/neo-go/pkg/util"
+    "github.com/nspcc-dev/neo-go/pkg/util"
+    "web3-onlyfans/services/api/internal/neo"
+    "web3-onlyfans/services/api/internal/utils"
 )
 
-// Пример: /nft/mint?token_id=myPost1&blurred=OID1&full=OID2&price=100
-func HandleMintNFT(w http.ResponseWriter, r *http.Request, neoCli *neo.NeoClient) {
-	// Получаем параметры
-	tokenId := r.URL.Query().Get("token_id")
-	blurred := r.URL.Query().Get("blurred")
-	full := r.URL.Query().Get("full")
-	priceStr := r.URL.Query().Get("price")
-	if tokenId == "" || blurred == "" || full == "" {
-		http.Error(w, "missing params", http.StatusBadRequest)
-		return
-	}
-
-	// Конвертируем price
-	// (в примере NEP-17 без decimals, так что не умножаем на 10^дробность)
-	price := big.NewInt(0)
-	price.SetString(priceStr, 10)
-
-	// Хэш NFT-контракта из ENV
-	nftHashStr := os.Getenv("NFT_CONTRACT_HASH")
-	nftHash, err := util.Uint160DecodeStringLE(nftHashStr)
-	if err != nil {
-		http.Error(w, "invalid NFT hash", http.StatusInternalServerError)
-		return
-	}
-
-	// Вызываем метод "mint"
-	txHash, err := neoCli.Actor.Call(nftHash, "mint", []any{
-		tokenId,  // str
-		"My NFT", // name (можно отдельно передавать)
-		blurred,  // blurred_ref
-		full,     // full_ref
-		price.Int64(),
-	}, nil)
-	if err != nil {
-		http.Error(w, "mint call error: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":  "ok",
-		"tx_hash": txHash.StringBE(),
-	})
+type MintNFTRequest struct {
+    TokenID    string `json:"token_id"`
+    Name       string `json:"name"`
+    BlurredRef string `json:"blurred_ref"`
+    FullRef    string `json:"full_ref"`
+    Price      int    `json:"price"`
 }
 
-func HandleListMarket(w http.ResponseWriter, r *http.Request, neoCli *neo.NeoClient) {
-	marketHashStr := os.Getenv("MARKET_CONTRACT_HASH")
-	marketHash, err := util.Uint160DecodeStringLE(marketHashStr)
-	if err != nil {
-		http.Error(w, "invalid MARKET hash", http.StatusInternalServerError)
-		return
-	}
+func MintNFTHandler(w http.ResponseWriter, r *http.Request, neoCli *neo.NeoClient, logger utils.Logger, cfg *utils.Config) {
+    var req MintNFTRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "invalid JSON", http.StatusBadRequest)
+        return
+    }
 
-	// Invoke без отправки транзакции (чтение из стейта)
-	res, err := neoCli.Actor.Reader().InvokeCall(marketHash, "List", []any{}, nil)
-	if err != nil {
-		http.Error(w, "List call error: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+    nftHash, err := util.Uint160DecodeStringLE(cfg.NftContractHash)
+    if err != nil {
+        http.Error(w, "invalid NFT hash", http.StatusInternalServerError)
+        return
+    }
 
-	// res.Value — stackitem
-	// Для простоты декодируем
-	tokenIDs, err := res.Stack[0].TryArray()
-	if err != nil {
-		http.Error(w, "decoding array error: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+    txHash, err := neoCli.Actor.Call(nftHash, "mint", []any{
+        req.TokenID,
+        req.Name,
+        req.BlurredRef,
+        req.FullRef,
+        req.Price,
+    }, nil)
+    if err != nil {
+        logger.Errorf("mint call error: %v", err)
+        http.Error(w, "mint call error", http.StatusInternalServerError)
+        return
+    }
 
-	list := []string{}
-	for _, t := range tokenIDs {
-		bs, err := t.TryBytes()
-		if err == nil {
-			list = append(list, string(bs))
-		}
-	}
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]any{
+        "status":  "ok",
+        "txHash":  txHash.StringBE(),
+        "tokenID": req.TokenID,
+    })
+}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"status": "ok",
-		"onSale": list,
-	})
+func NFTPropertiesHandler(w http.ResponseWriter, r *http.Request, neoCli *neo.NeoClient, logger utils.Logger, cfg *utils.Config) {
+    tokenID := r.URL.Query().Get("token_id")
+    if tokenID == "" {
+        http.Error(w, "missing token_id", http.StatusBadRequest)
+        return
+    }
+
+    nftHash, err := util.Uint160DecodeStringLE(cfg.NftContractHash)
+    if err != nil {
+        http.Error(w, "invalid NFT hash", http.StatusInternalServerError)
+        return
+    }
+
+    invRes, err := neoCli.Actor.Reader().InvokeCall(nftHash, "properties", []any{tokenID}, nil)
+    if err != nil {
+        logger.Errorf("invoke call error: %v", err)
+        http.Error(w, "invoke call error", http.StatusInternalServerError)
+        return
+    }
+
+    // Разбираем stackitem.Map
+    propsMap, err := utils.DecodeStringMap(invRes.Stack[0])
+    if err != nil {
+        logger.Errorf("decode error: %v", err)
+        http.Error(w, "decode error", http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]any{
+        "status": "ok",
+        "props":  propsMap,
+    })
 }
