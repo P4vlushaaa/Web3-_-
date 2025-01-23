@@ -27,7 +27,6 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	// Можно переопределить через ENV (если нужно)
 	if envListen := os.Getenv("API_LISTEN_ADDR"); envListen != "" {
 		cfg.ListenAddr = envListen
 	}
