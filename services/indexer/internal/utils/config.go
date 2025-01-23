@@ -24,7 +24,7 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	// Переопределения через ENV (пример)
+
 	if e := os.Getenv("INDEXER_POLL_INTERVAL"); e != "" {
 		if val, err := strconv.Atoi(e); err == nil {
 			c.PollIntervalSeconds = val
