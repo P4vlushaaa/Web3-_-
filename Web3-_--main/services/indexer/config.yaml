@@ -1,0 +1,4 @@
+neoRPC: "http://localhost:20332"
+logLevel: "info"
+dbDsn: "postgres://indexer:password@postgres:5432/indexerdb?sslmode=disable"
+pollIntervalSeconds: 3
