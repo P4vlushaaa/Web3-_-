@@ -1,38 +1,65 @@
 package main
 
 import (
-	"log"
-	"net/http"
-	"os"
+    "log"
+    "net/http"
+    "os"
 
-	"myproject/services/api/internal/handlers"
-	"myproject/services/api/internal/neo"
-
-	"github.com/gorilla/mux"
+    "github.com/gorilla/mux"
+    "web3-onlyfans/services/api/internal/handlers"
+    "web3-onlyfans/services/api/internal/utils"
+    "web3-onlyfans/services/api/internal/neo"
 )
 
 func main() {
-	rpcEndpoint := os.Getenv("NEO_RPC_ENDPOINT") // "http://localhost:20332"
-	walletPath := os.Getenv("NEO_WALLET_PATH")
-	walletPass := os.Getenv("NEO_WALLET_PASS")
+    // Загружаем конфиг (примерно)
+    configPath := os.Getenv("API_CONFIG_PATH")
+    if configPath == "" {
+        configPath = "./config.yaml"
+    }
+    cfg, err := utils.LoadConfig(configPath)
+    if err != nil {
+        log.Fatalf("failed to load config: %v", err)
+    }
 
-	// Инициализируем клиент NEO
-	neoCli, err := neo.NewNeoClient(rpcEndpoint, walletPath, walletPass)
-	if err != nil {
-		log.Fatalf("failed to init neo client: %v", err)
-	}
+    // Инициализируем логгер
+    logger := utils.NewLogger(cfg.LogLevel)
 
-	r := mux.NewRouter()
-	r.HandleFunc("/nft/mint", func(w http.ResponseWriter, r *http.Request) {
-		handlers.HandleMintNFT(w, r, neoCli)
-	}).Methods("POST")
+    // Инициализируем NeoClient (RPC + кошелёк)
+    neoCli, err := neo.NewNeoClient(cfg.NeoRPC, cfg.WalletPath, cfg.WalletPass)
+    if err != nil {
+        logger.Fatalf("failed to init neo client: %v", err)
+    }
 
-	r.HandleFunc("/nft/market-list", func(w http.ResponseWriter, r *http.Request) {
-		handlers.HandleListMarket(w, r, neoCli)
-	}).Methods("GET")
+    // Роуты
+    r := mux.NewRouter()
+    // NFT endpoints
+    r.HandleFunc("/nft/mint", func(w http.ResponseWriter, r *http.Request) {
+        handlers.MintNFTHandler(w, r, neoCli, logger, cfg)
+    }).Methods("POST")
 
-	// и т.д.
+    r.HandleFunc("/nft/properties", func(w http.ResponseWriter, r *http.Request) {
+        handlers.NFTPropertiesHandler(w, r, neoCli, logger, cfg)
+    }).Methods("GET")
 
-	log.Println("Starting API on :8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
+    // Market endpoints
+    r.HandleFunc("/market/list", func(w http.ResponseWriter, r *http.Request) {
+        handlers.MarketListHandler(w, r, neoCli, logger, cfg)
+    }).Methods("GET")
+
+    r.HandleFunc("/market/buy", func(w http.ResponseWriter, r *http.Request) {
+        handlers.MarketBuyHandler(w, r, neoCli, logger, cfg)
+    }).Methods("POST")
+
+    // Token endpoints (например, посмотреть баланс)
+    r.HandleFunc("/token/balance", func(w http.ResponseWriter, r *http.Request) {
+        handlers.TokenBalanceHandler(w, r, neoCli, logger, cfg)
+    }).Methods("GET")
+
+    // Запуск сервера
+    addr := cfg.ListenAddr
+    logger.Infof("API starting on %s", addr)
+    if err := http.ListenAndServe(addr, r); err != nil {
+        logger.Fatalf("server error: %v", err)
+    }
 }
