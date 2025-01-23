@@ -16,7 +16,6 @@ const (
 	sellPrefix = "forSale_"
 )
 
-// MarketDeployData структура для _deploy
 type MarketDeployData struct {
 	Admin interop.Hash160
 	Token interop.Hash160
@@ -40,7 +39,7 @@ func _deploy(data any, isUpdate bool) {
 	storage.Put(ctx, []byte(nftKey), initData.Nft)
 }
 
-// OnNEP11Payment вызывается при получении NFT
+
 func OnNEP11Payment(from interop.Hash160, amount int, tokenId []byte, data any) {
 	if amount != 1 {
 		panic("Must be non-fungible (amount=1)")
@@ -58,7 +57,7 @@ func OnNEP11Payment(from interop.Hash160, amount int, tokenId []byte, data any) 
 	storage.Put(ctx, saleKey, []byte{1})
 }
 
-// OnNEP17Payment вызывается при получении токенов (оплата за NFT)
+
 func OnNEP17Payment(from interop.Hash160, amount int, data any) {
 	ctx := storage.GetContext()
 	callingHash := runtime.GetCallingScriptHash()
@@ -78,7 +77,7 @@ func OnNEP17Payment(from interop.Hash160, amount int, data any) {
 		panic("NFT not on sale")
 	}
 
-	// Узнаем price из NFT
+	
 	nftHash := storage.Get(ctx, []byte(nftKey)).(interop.Hash160)
 	props := contract.Call(nftHash, "properties", contract.ReadStates, tokenId).(map[string]any)
 	// price хранится как string => нужно конвертировать
@@ -87,13 +86,13 @@ func OnNEP17Payment(from interop.Hash160, amount int, data any) {
 		panic("insufficient payment")
 	}
 
-	// снимаем с продажи
+	
 	storage.Delete(ctx, saleKey)
 	// передаем NFT покупателю
 	contract.Call(nftHash, "transfer", contract.All, from, tokenId, nil)
 }
 
-// List вернет массив token_id, которые сейчас на продаже
+
 func List() []string {
 	ctx := storage.GetContext()
 	iter := storage.Find(ctx, []byte(sellPrefix), storage.KeysOnly)
@@ -106,7 +105,7 @@ func List() []string {
 	return result
 }
 
-// TransferTokens позволяет владельцу контракта забрать токены с контракта.
+
 func TransferTokens(to interop.Hash160, amount int) {
 	ctx := storage.GetContext()
 	owner := storage.Get(ctx, []byte(ownerKey)).(interop.Hash160)
